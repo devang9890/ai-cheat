@@ -8,6 +8,7 @@ const cheatingLogSchema = new mongoose.Schema(
     lookingAway: Boolean,
     cheatingScore: Number,
     riskLevel: String,
+    tabSwitches: Number,
     warnings: Number,
     examTerminated: Boolean,
   },

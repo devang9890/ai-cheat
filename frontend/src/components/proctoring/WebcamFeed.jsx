@@ -16,6 +16,9 @@ const WebcamFeed = () => {
 
   const [warnings, setWarnings] = useState(0);
   const [examTerminated, setExamTerminated] = useState(false);
+  const [tabSwitches, setTabSwitches] = useState(0);
+  const [showTabBadge, setShowTabBadge] = useState(false);
+  const lastTabEventRef = useRef(0);
 
   // 🎥 Start webcam
   useEffect(() => {
@@ -27,6 +30,35 @@ const WebcamFeed = () => {
       .catch(console.error);
 
     return () => stopMonitoring();
+  }, []);
+
+  // 🔎 Tab switch / blur detection
+  useEffect(() => {
+    const markTabEvent = () => {
+      const now = Date.now();
+      // Debounce: only count once per second
+      if (now - lastTabEventRef.current < 1000) return;
+      lastTabEventRef.current = now;
+      setTabSwitches((prev) => prev + 1);
+      setShowTabBadge(true);
+      setTimeout(() => setShowTabBadge(false), 1500);
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) markTabEvent();
+    };
+
+    const handleBlur = () => {
+      markTabEvent();
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("blur", handleBlur);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("blur", handleBlur);
+    };
   }, []);
 
   // 📸 Capture frame from webcam
@@ -54,7 +86,7 @@ const WebcamFeed = () => {
     try {
       const res = await axios.post(
         "http://localhost:5000/api/proctor/analyze-frame",
-        { image }
+        { image, tabSwitches }
       );
 
       setFaceStatus(res.data.faceStatus);
@@ -90,6 +122,15 @@ const WebcamFeed = () => {
     }
   };
 
+  // ❌ Auto-terminate after 3 tab switches
+  useEffect(() => {
+    if (tabSwitches >= 3 && !examTerminated) {
+      alert("❌ Exam Terminated due to repeated tab switches");
+      setExamTerminated(true);
+      stopMonitoring();
+    }
+  }, [tabSwitches]);
+
   // ▶️ Start monitoring
   const startMonitoring = () => {
     if (intervalRef.current || examTerminated) return;
@@ -112,12 +153,19 @@ const WebcamFeed = () => {
 
   return (
     <div className="flex flex-col items-center gap-4">
-      <video
-        ref={videoRef}
-        autoPlay
-        playsInline
-        className="w-96 rounded border"
-      />
+      <div className="relative">
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          className="w-96 rounded border"
+        />
+        {showTabBadge && (
+          <div className="absolute top-2 left-2 bg-yellow-500 text-white text-sm px-2 py-1 rounded shadow">
+            ⚠️ Tab switch detected
+          </div>
+        )}
+      </div>
       <canvas ref={canvasRef} className="hidden" />
 
       <div className="bg-white p-4 rounded shadow w-96 text-center space-y-1">
@@ -126,6 +174,7 @@ const WebcamFeed = () => {
         <p><b>Head Direction:</b> {headDirection}</p>
         <p><b>Looking Away:</b> {lookingAway ? "⚠️ YES" : "✅ NO"}</p>
         <p><b>Warnings:</b> {warnings} / 3</p>
+        <p><b>Tab Switches:</b> {tabSwitches}</p>
 
         <div className={`mt-3 p-2 rounded text-white ${riskColor}`}>
           <p className="font-bold">Risk Level: {riskLevel}</p>

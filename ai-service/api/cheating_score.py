@@ -9,7 +9,8 @@ analyzer = BehaviorAnalyzer()
 def update_score(data: CheatingUpdateRequest):
     analyzer.update(
         face_count=data.face_count,
-        looking_away=data.looking_away
+        looking_away=data.looking_away,
+        tab_switches=data.tab_switches
     )
 
     score, status = analyzer.calculate_score()

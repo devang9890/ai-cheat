@@ -2,7 +2,7 @@ import axios from "axios";
 
 const AI_BASE_URL = "http://127.0.0.1:8000";
 
-export const analyzeFrameWithAI = async (image) => {
+export const analyzeFrameWithAI = async (image, tabSwitches = 0) => {
   // Face detection
   const faceRes = await axios.post(
     `${AI_BASE_URL}/api/face/detect-face`,
@@ -21,6 +21,7 @@ export const analyzeFrameWithAI = async (image) => {
     {
       face_count: faceRes.data.face_count,
       looking_away: eyeRes.data.looking_away,
+      tab_switches: tabSwitches,
     }
   );
 
