@@ -29,6 +29,7 @@ const WebcamFeed = () => {
     return () => stopMonitoring();
   }, []);
 
+  // 📸 Capture frame from webcam
   const captureFrame = () => {
     const video = videoRef.current;
     const canvas = canvasRef.current;
@@ -43,6 +44,7 @@ const WebcamFeed = () => {
     return canvas.toDataURL("image/jpeg");
   };
 
+  // 🧠 Send frame to Node.js backend (ONLY ONE API CALL)
   const analyzeFrame = async () => {
     if (examTerminated) return;
 
@@ -50,40 +52,22 @@ const WebcamFeed = () => {
     if (!image) return;
 
     try {
-      // 👤 Face detection
-      const faceRes = await axios.post(
-        "http://127.0.0.1:8000/api/face/detect-face",
+      const res = await axios.post(
+        "http://localhost:5000/api/proctor/analyze-frame",
         { image }
       );
 
-      setFaceStatus(faceRes.data.status);
-      setFaceCount(faceRes.data.face_count);
-
-      // 👀 Eye / head tracking
-      const eyeRes = await axios.post(
-        "http://127.0.0.1:8000/api/eyes/detect-eyes",
-        { image }
-      );
-
-      setHeadDirection(eyeRes.data.head_direction);
-      setLookingAway(eyeRes.data.looking_away);
-
-      // 🧠 Cheating score
-      const scoreRes = await axios.post(
-        "http://127.0.0.1:8000/api/cheating/update-score",
-        {
-          face_count: faceRes.data.face_count,
-          looking_away: eyeRes.data.looking_away,
-        }
-      );
-
-      setCheatingScore(scoreRes.data.cheating_score);
-      setRiskLevel(scoreRes.data.risk_level);
+      setFaceStatus(res.data.faceStatus);
+      setFaceCount(res.data.faceCount);
+      setHeadDirection(res.data.headDirection);
+      setLookingAway(res.data.lookingAway);
+      setCheatingScore(res.data.cheatingScore);
+      setRiskLevel(res.data.riskLevel);
 
       // 🚨 Warning system (3 strikes)
       if (
-        scoreRes.data.risk_level === "SUSPICIOUS" ||
-        scoreRes.data.risk_level === "HIGH_RISK"
+        res.data.riskLevel === "SUSPICIOUS" ||
+        res.data.riskLevel === "HIGH_RISK"
       ) {
         setWarnings((prev) => {
           const next = prev + 1;
@@ -102,15 +86,17 @@ const WebcamFeed = () => {
         });
       }
     } catch (err) {
-      console.error("AI error:", err.response?.data || err.message);
+      console.error("Proctoring error:", err.response?.data || err.message);
     }
   };
 
+  // ▶️ Start monitoring
   const startMonitoring = () => {
     if (intervalRef.current || examTerminated) return;
     intervalRef.current = setInterval(analyzeFrame, 3000);
   };
 
+  // ⏹ Stop monitoring
   const stopMonitoring = () => {
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
