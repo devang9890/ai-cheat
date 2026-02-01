@@ -1,6 +1,11 @@
 import express from "express";
 import cors from "cors";
-import proctorRoutes from "./routes/proctor.routes.js";
+import dotenv from "dotenv";
+import proctorRoutes from "./routes/proctorRoutes.js";
+import connectDB from "./config/db.js";
+
+dotenv.config();
+connectDB();
 
 const app = express();
 

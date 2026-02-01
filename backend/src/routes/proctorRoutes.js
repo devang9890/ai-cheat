@@ -1,5 +1,5 @@
 import express from "express";
-import { analyzeFrame } from "../controllers/proctor.controller.js";
+import { analyzeFrame } from "../controllers/proctorController.js";
 
 const router = express.Router();
 
