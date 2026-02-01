@@ -6,21 +6,25 @@ const WebcamFeed = () => {
   const canvasRef = useRef(null);
   const intervalRef = useRef(null);
 
-  const [faceStatus, setFaceStatus] = useState("Waiting...");
+  const [faceStatus, setFaceStatus] = useState("WAITING");
   const [faceCount, setFaceCount] = useState(0);
-  const [headDirection, setHeadDirection] = useState("Waiting...");
+  const [headDirection, setHeadDirection] = useState("WAITING");
   const [lookingAway, setLookingAway] = useState(false);
 
-  // Start webcam
+  const [cheatingScore, setCheatingScore] = useState(0);
+  const [riskLevel, setRiskLevel] = useState("SAFE");
+
+  const [warnings, setWarnings] = useState(0);
+  const [examTerminated, setExamTerminated] = useState(false);
+
+  // 🎥 Start webcam
   useEffect(() => {
     navigator.mediaDevices
       .getUserMedia({ video: true })
       .then((stream) => {
         videoRef.current.srcObject = stream;
       })
-      .catch((err) => {
-        console.error("Webcam access error:", err);
-      });
+      .catch(console.error);
 
     return () => stopMonitoring();
   }, []);
@@ -40,38 +44,71 @@ const WebcamFeed = () => {
   };
 
   const analyzeFrame = async () => {
-    const base64Image = captureFrame();
-    if (!base64Image) return;
+    if (examTerminated) return;
+
+    const image = captureFrame();
+    if (!image) return;
 
     try {
-      // Face detection
+      // 👤 Face detection
       const faceRes = await axios.post(
         "http://127.0.0.1:8000/api/face/detect-face",
-        { image: base64Image }
+        { image }
       );
 
       setFaceStatus(faceRes.data.status);
       setFaceCount(faceRes.data.face_count);
 
-      // Eye / head tracking
+      // 👀 Eye / head tracking
       const eyeRes = await axios.post(
         "http://127.0.0.1:8000/api/eyes/detect-eyes",
-        { image: base64Image }
+        { image }
       );
 
       setHeadDirection(eyeRes.data.head_direction);
       setLookingAway(eyeRes.data.looking_away);
+
+      // 🧠 Cheating score
+      const scoreRes = await axios.post(
+        "http://127.0.0.1:8000/api/cheating/update-score",
+        {
+          face_count: faceRes.data.face_count,
+          looking_away: eyeRes.data.looking_away,
+        }
+      );
+
+      setCheatingScore(scoreRes.data.cheating_score);
+      setRiskLevel(scoreRes.data.risk_level);
+
+      // 🚨 Warning system (3 strikes)
+      if (
+        scoreRes.data.risk_level === "SUSPICIOUS" ||
+        scoreRes.data.risk_level === "HIGH_RISK"
+      ) {
+        setWarnings((prev) => {
+          const next = prev + 1;
+
+          if (next === 1) {
+            alert("⚠️ Warning 1: Suspicious activity detected");
+          } else if (next === 2) {
+            alert("⚠️ Final Warning: Further activity will terminate exam");
+          } else if (next >= 3) {
+            alert("❌ Exam Terminated due to cheating");
+            setExamTerminated(true);
+            stopMonitoring();
+          }
+
+          return next;
+        });
+      }
     } catch (err) {
       console.error("AI error:", err.response?.data || err.message);
     }
   };
 
   const startMonitoring = () => {
-    if (intervalRef.current) return;
-
-    intervalRef.current = setInterval(() => {
-      analyzeFrame();
-    }, 3000); // every 3 seconds
+    if (intervalRef.current || examTerminated) return;
+    intervalRef.current = setInterval(analyzeFrame, 3000);
   };
 
   const stopMonitoring = () => {
@@ -81,6 +118,12 @@ const WebcamFeed = () => {
     }
   };
 
+  const riskColor = {
+    SAFE: "bg-green-500",
+    SUSPICIOUS: "bg-yellow-500",
+    HIGH_RISK: "bg-red-500",
+  }[riskLevel];
+
   return (
     <div className="flex flex-col items-center gap-4">
       <video
@@ -89,17 +132,25 @@ const WebcamFeed = () => {
         playsInline
         className="w-96 rounded border"
       />
-
       <canvas ref={canvasRef} className="hidden" />
 
-      <div className="bg-white p-4 rounded shadow w-96 text-center">
-        <p><strong>Face Status:</strong> {faceStatus}</p>
-        <p><strong>Faces Detected:</strong> {faceCount}</p>
-        <p><strong>Head Direction:</strong> {headDirection}</p>
-        <p>
-          <strong>Looking Away:</strong>{" "}
-          {lookingAway ? "⚠️ YES" : "✅ NO"}
-        </p>
+      <div className="bg-white p-4 rounded shadow w-96 text-center space-y-1">
+        <p><b>Face Status:</b> {faceStatus}</p>
+        <p><b>Faces Detected:</b> {faceCount}</p>
+        <p><b>Head Direction:</b> {headDirection}</p>
+        <p><b>Looking Away:</b> {lookingAway ? "⚠️ YES" : "✅ NO"}</p>
+        <p><b>Warnings:</b> {warnings} / 3</p>
+
+        <div className={`mt-3 p-2 rounded text-white ${riskColor}`}>
+          <p className="font-bold">Risk Level: {riskLevel}</p>
+          <p>Cheating Score: {cheatingScore}</p>
+        </div>
+
+        {examTerminated && (
+          <p className="text-red-600 font-bold mt-2">
+            ❌ Exam Terminated
+          </p>
+        )}
       </div>
 
       <div className="flex gap-4">
