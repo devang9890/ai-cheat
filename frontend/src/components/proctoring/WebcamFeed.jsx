@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { v4 as uuidv4 } from "uuid";
 import axios from "axios";
 
 const WebcamFeed = () => {
@@ -19,6 +20,11 @@ const WebcamFeed = () => {
   const [tabSwitches, setTabSwitches] = useState(0);
   const [showTabBadge, setShowTabBadge] = useState(false);
   const lastTabEventRef = useRef(0);
+
+  // 📌 Identifiers (replace with real auth/exam context later)
+  const [sessionId] = useState(uuidv4());
+  const studentId = "student_123";
+  const examId = "exam_456";
 
   // 🎥 Start webcam
   useEffect(() => {
@@ -86,7 +92,7 @@ const WebcamFeed = () => {
     try {
       const res = await axios.post(
         "http://localhost:5000/api/proctor/analyze-frame",
-        { image, tabSwitches }
+        { image, sessionId, studentId, examId, tabSwitches }
       );
 
       setFaceStatus(res.data.faceStatus);
